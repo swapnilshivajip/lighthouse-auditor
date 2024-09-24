@@ -1,0 +1,19 @@
+{
+  "name": "lighthouse-auditor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "swapnilshivaji.pingal",
+  "license": "ISC",
+  "dependencies": {
+    "lighthouse":"^12.2.0",
+    "chrome-launcher":"^1.1.2",
+    "log4js":"6.9.1",
+    "uuidv4":"6.2.13"  
+  },
+  "type": "module"
+}

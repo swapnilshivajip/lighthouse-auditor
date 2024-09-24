@@ -1,0 +1,9 @@
+{
+    "formFactor": "mobile",
+    "output":["html","json"],
+    "auditCategories":["performance"],
+    "logLevel": "verbose",
+    "headless":false,
+    "disableGPU":false,
+    "url":""
+}
