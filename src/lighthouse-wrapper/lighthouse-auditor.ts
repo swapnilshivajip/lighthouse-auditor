@@ -1,19 +1,16 @@
 import * as ChromeLauncher from 'chrome-launcher';
 import lighthouse, { Config, Flags, RunnerResult } from "lighthouse";
-import fs, { readFileSync } from 'fs';
+import fs from 'fs';
 import { logger } from '../util/logger.js';
 import * as path from 'path';
 import { validateDirectoryPath } from '../util/files.js';
 import { getRandomUUID } from '../util/random.js';
 import { getFormFactor, getOutputTypes, getAuditCategories, getLogLevel, getHeadless, getDisableGPU } from './lighthouse-config.js';
-import { getLogger } from 'log4js';
-import desktopConfig from 'lighthouse/core/config/lr-desktop-config.js';
 import mobileConfig from 'lighthouse/core/config/lr-mobile-config.js';
 
 
 let reportLocation: string = "./reports";
 let chrome: ChromeLauncher.LaunchedChrome;
-
 
 export interface Cookie {
     name: string;
@@ -67,7 +64,7 @@ function cleanUpReports() {
                     logger.debug(`Deleted old HTML report: ${filePath}`);
                 }
             }
-            if (file.startsWith('performance-report-thread-') && file.endsWith('.json') && file.includes('trace')) {
+            if (file.endsWith('.json') && file.includes('trace')) {
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
                     logger.debug(`Deleted old Traces report: ${filePath}`);
@@ -102,9 +99,8 @@ function getChromeLaunchOptions(chromeOpt?: ChromeFlagsConfig): ChromeLauncher.O
             }
         }
     }
-    chromeFlags.push("--disable-storage-reset");
 
-    let chromeOptions:ChromeLauncher.Options = {
+    let chromeOptions: ChromeLauncher.Options = {
         chromeFlags,
         logLevel: chromeOpt.logLevel ? chromeOpt.logLevel : (getLogLevel() ? getLogLevel() : 'info'),
     }
@@ -153,7 +149,7 @@ export function setReportLocation(location: string) {
  * @param lighthouseFlags 
  * @returns 
  */
-function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFlags: Flags|undefined, cookies?:Cookie[]) {
+function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFlags: Flags | undefined, cookies?: Cookie[]) {
     lighthouseFlags = lighthouseFlags ? lighthouseFlags : {};
     lighthouseFlags.logLevel = lighthouseFlags.logLevel ? lighthouseFlags.logLevel : (getLogLevel() ? getLogLevel() : 'info');
     lighthouseFlags.output = lighthouseFlags.output ? lighthouseFlags.output : (getOutputTypes() ? getOutputTypes() : ['html']);
@@ -161,8 +157,21 @@ function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFl
     lighthouseFlags.formFactor = lighthouseFlags.formFactor ? lighthouseFlags.formFactor : (getFormFactor() ? getFormFactor() : "desktop");
     lighthouseFlags.port = browser.port;
     lighthouseFlags.extraHeaders = lighthouseFlags.extraHeaders ? lighthouseFlags.extraHeaders : {};
-    lighthouseFlags.extraHeaders['Cookie'] = lighthouseFlags.extraHeaders['Cookie'] ? lighthouseFlags.extraHeaders['Cookie'] : (cookies ? cookies?.map(cookie => `${cookie.name}=${cookie.value}`).join('; '):'');
+    lighthouseFlags.extraHeaders['Cookie'] = lighthouseFlags.extraHeaders['Cookie'] ? lighthouseFlags.extraHeaders['Cookie'] : (cookies ? cookies?.map(cookie => `${cookie.name}=${cookie.value}`).join('; ') : '');
     lighthouseFlags.disableStorageReset = true;
+    lighthouseFlags.clearStorageTypes = ["all"];
+    lighthouseFlags.skipAboutBlank = true;
+    if(lighthouseFlags.formFactor == "desktop"){
+        lighthouseFlags.screenEmulation = {
+            mobile: false,
+            width: 1350,
+            height: 940,
+            deviceScaleFactor: 1,
+            disabled: false,
+        };
+        lighthouseFlags.throttlingMethod = "simulate"; 
+    }
+    
     logger.info(`Lighthouse Config: ${JSON.stringify(lighthouseFlags)}`);
     return lighthouseFlags;
 }
@@ -173,32 +182,32 @@ function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFl
  */
 function getLighthouseConfig(): Config {
     if (getFormFactor() == "desktop") {
-        //** enhance to return desktop-config.js or lr-desktop-config.js based on headless flag
-        let temp:Config = {
+        let desktopConfig: Config = {
             extends: 'lighthouse:default',
             settings: {
-              formFactor: 'desktop',
-              screenEmulation: {
-                mobile: false,
-                width: 1350,
-                height: 940,
-                deviceScaleFactor: 1,
-                disabled: false,
-              },
-              throttling: {
-                rttMs: 40,
-                throughputKbps: 10240,
-                cpuSlowdownMultiplier: 1,
-                requestLatencyMs: 0,
-                downloadThroughputKbps: 0,
-                uploadThroughputKbps: 0,
-              },
-              emulatedUserAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4143.7 Safari/537.36 Chrome-Lighthouse',
+                formFactor: 'desktop',
+                screenEmulation: {
+                    mobile: false,
+                    width: 1350,
+                    height: 940,
+                    deviceScaleFactor: 1,
+                    disabled: false,
+                },
+                throttling: {
+                    rttMs: 40,
+                    throughputKbps: 10240,
+                    cpuSlowdownMultiplier: 1,
+                    requestLatencyMs: 0,
+                    downloadThroughputKbps: 0,
+                    uploadThroughputKbps: 0,
+                },
+                emulatedUserAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4143.7 Safari/537.36 Chrome-Lighthouse',
+                throttlingMethod: 'simulate'
             },
-          };
-          
-        
-        return temp;
+        };
+
+
+        return desktopConfig;
     } else {
         return mobileConfig;
     }
@@ -226,7 +235,8 @@ export async function runAudit(url: string, auditOpts?: AuditOptions): Promise<v
 
     try {
         logger.info(`Running lighthouse...`)
-        const runnerResult: RunnerResult | undefined = await lighthouse(url, flags, configuration);
+        // const runnerResult: RunnerResult | undefined = await lighthouse(url, flags, configuration);
+        const runnerResult: RunnerResult | undefined = await lighthouse(url, flags);
         logger.info(`Lighthouse processing completed.`)
         // Generate reports
         generateReports(runnerResult, threadId, flags);
@@ -305,13 +315,26 @@ function generateReports(runnerResult: RunnerResult | undefined, threadId: any, 
     if (runnerResult?.artifacts) {
         logger.info(`Generating Trace JSON report.`)
         // Write the traces to json file
-        const traceFileName = `performance-report-thread-${threadId}-${Date.now()}-traces.json`;
+        const traceFileName = `${threadId}-${Date.now()}-traces.json`;
         const reportFilePath = path.join(
             reportLocation, traceFileName);
         fs.writeFileSync(reportFilePath, JSON.stringify(runnerResult.artifacts.traces.defaultPass, null, 2));
         logger.info(`Trace JSON Report generation successful.`)
     } else {
         logger.error("Failed to generate traces.");
+    }
+
+    // Generate devtools logs
+    if (runnerResult?.artifacts) {
+        logger.info(`Generating DevtoolsLog Records JSON report.`)
+        // Write the traces to json file
+        const traceFileName = `${threadId}-${Date.now()}-DevtoolsLog.json`;
+        const reportFilePath = path.join(
+            reportLocation, traceFileName);
+        fs.writeFileSync(reportFilePath, JSON.stringify(runnerResult.artifacts['DevtoolsLog'], null, 2));
+        logger.info(`DevtoolsLog JSON Report generation successful.`)
+    } else {
+        logger.error("Failed to generate DevtoolsLog.");
     }
 }
 

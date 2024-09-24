@@ -13,3 +13,13 @@ https://github.com/akagupta9/lighthouse-wrapper
 https://medium.com/testvagrant/automate-lighthouse-2822b12f3465
 
 https://github.com/GoogleChrome/lighthouse/blob/main/docs/readme.md
+
+https://github.com/GoogleChrome/lighthouse/blob/main/docs/throttling.md
+
+https://www.debugbear.com/blog/network-throttling-methods
+
+https://www.debugbear.com/blog/simulated-throttling
+
+https://www.debugbear.com/blog/render-blocking-resources
+
+https://github.com/GoogleChrome/lighthouse/blob/main/docs/variability.md
