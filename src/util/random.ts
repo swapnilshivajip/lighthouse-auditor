@@ -22,3 +22,25 @@ export const getRandomInt = (min: number, max: number): number => {
     logger.info(`Random integer between ${min} and ${max}: ${randomInt}`);
     return randomInt;
 }
+
+/**
+ * Calculate median score.
+ * @param scores list of scores
+ * @returns 
+ */
+export function calculateMedian(scores: number[]): number {
+    if (scores.length === 0) return 0;
+
+    // Sort the array in ascending order
+    scores.sort((a, b) => a - b);
+
+    const mid = Math.floor(scores.length / 2);
+
+    // If the array has an odd number of elements, return the middle element
+    if (scores.length % 2 !== 0) {
+        return scores[mid];
+    } else {
+        // If even, return the average of the two middle elements
+        return (scores[mid - 1] + scores[mid]) / 2;
+    }
+}

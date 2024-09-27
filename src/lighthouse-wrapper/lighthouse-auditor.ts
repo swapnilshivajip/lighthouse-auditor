@@ -4,25 +4,14 @@ import fs from 'fs';
 import { logger } from '../util/logger.js';
 import * as path from 'path';
 import { validateDirectoryPath } from '../util/files.js';
-import { getRandomUUID } from '../util/random.js';
+import { calculateMedian, getRandomUUID } from '../util/random.js';
 import { getFormFactor, getOutputTypes, getAuditCategories, getLogLevel, getHeadless, getDisableGPU } from './lighthouse-config.js';
 import mobileConfig from 'lighthouse/core/config/lr-mobile-config.js';
+import { Cookie, Page } from 'playwright-core';
 
 
 let reportLocation: string = "./reports";
 let chrome: ChromeLauncher.LaunchedChrome;
-
-export interface Cookie {
-    name: string;
-    value: string;
-    domain?: string;
-    path?: string;
-    secure?: boolean;
-    httpOnly?: boolean;
-    sameSite?: string;
-    storeId?: string;
-    hostOnly?: string;
-}
 
 export interface SessionData {
     cookies: Cookie[];
@@ -65,6 +54,12 @@ function cleanUpReports() {
                 }
             }
             if (file.endsWith('.json') && file.includes('trace')) {
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    logger.debug(`Deleted old Traces report: ${filePath}`);
+                }
+            }
+            if (file.endsWith('.json') && file.includes('DevtoolsLog')) {
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
                     logger.debug(`Deleted old Traces report: ${filePath}`);
@@ -161,7 +156,7 @@ function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFl
     lighthouseFlags.disableStorageReset = true;
     lighthouseFlags.clearStorageTypes = ["all"];
     lighthouseFlags.skipAboutBlank = true;
-    if(lighthouseFlags.formFactor == "desktop"){
+    if (lighthouseFlags.formFactor == "desktop") {
         lighthouseFlags.screenEmulation = {
             mobile: false,
             width: 1350,
@@ -169,9 +164,17 @@ function getLighthouseFlags(browser: ChromeLauncher.LaunchedChrome, lighthouseFl
             deviceScaleFactor: 1,
             disabled: false,
         };
-        lighthouseFlags.throttlingMethod = "simulate"; 
+        lighthouseFlags.throttlingMethod = "simulate";
+        lighthouseFlags.throttling = {
+            rttMs: 40,                // Round-trip time (latency) in milliseconds
+            throughputKbps: 10240,     // Network download speed in Kbps (10 Mbps)
+            uploadThroughputKbps: 5120, // Network upload speed in Kbps (5 Mbps)
+            cpuSlowdownMultiplier: 1,  // No CPU slowdown for desktop emulation
+            requestLatencyMs: 0,       // No additional request latency
+            downloadThroughputKbps: 0, // No artificial download limit
+        }
     }
-    
+
     logger.info(`Lighthouse Config: ${JSON.stringify(lighthouseFlags)}`);
     return lighthouseFlags;
 }
@@ -215,39 +218,80 @@ function getLighthouseConfig(): Config {
 
 /**
  *  Run lighthouse audit on the given URL and generate report. This will delete any existing reports.
- * @param url 
- * @param auditOpts 
+ * @param url test URL
+ * @param auditOpts AuditOptions
  */
-export async function runAudit(url: string, auditOpts?: AuditOptions): Promise<void> {
+export async function runAudit(url: string, auditOpts?: AuditOptions, runs?: number): Promise<number> {
 
     // clean up existing reports.
     cleanUpReports();
 
-    // launch chrome
-    const threadId = getRandomUUID();
-    logger.info(`Running audit over thread: ${threadId}.`)
-    chrome = await launchChrome(url, auditOpts?.chromeOptions);
+    // array to store performance score of all runs
+    const results: number[] = [];
 
-    // set up lighthouse configuration
-    let flags: Flags = getLighthouseFlags(chrome, auditOpts?.lighthouseFlags, auditOpts?.sessionData?.cookies);
-    let configuration: Config = getLighthouseConfig();
-    logger.info(`Lighthouse config after cookie updation: ${JSON.stringify(configuration)}`);
+    runs = runs ? runs : 1;
+    for (let i = 0; i < runs; i++) {
 
-    try {
-        logger.info(`Running lighthouse...`)
-        // const runnerResult: RunnerResult | undefined = await lighthouse(url, flags, configuration);
-        const runnerResult: RunnerResult | undefined = await lighthouse(url, flags);
-        logger.info(`Lighthouse processing completed.`)
-        // Generate reports
-        generateReports(runnerResult, threadId, flags);
-    } catch (error) {
-        logger.error(`Error in thread: ${threadId}`)
-        logger.error(error);
-    } finally {
-        logger.info(`Killing the chrome instance.`)
-        chrome.kill();
-        logger.info(`Chrome instance killed successfully.`)
+        logger.info(`Run #${i + 1}`)
+
+        // launch chrome
+        const threadId = getRandomUUID();
+        logger.info(`Running audit over thread: ${threadId}.`)
+        chrome = await launchChrome(url, auditOpts?.chromeOptions);
+
+        // set up lighthouse configuration
+        let flags: Flags = getLighthouseFlags(chrome, auditOpts?.lighthouseFlags, auditOpts?.sessionData?.cookies);
+        let configuration: Config = getLighthouseConfig();
+        logger.info(`Lighthouse config after cookie updation: ${JSON.stringify(configuration)}`);
+
+        try {
+            logger.info(`Running lighthouse...`)
+            // const runnerResult: RunnerResult | undefined = await lighthouse(url, flags, configuration);
+            const runnerResult: RunnerResult | undefined = await lighthouse(url, flags);
+            logger.info(`Lighthouse processing completed.`)
+            // Generate reports
+            generateReports(runnerResult, threadId, flags);
+            if (runnerResult) {
+                const perfScore = runnerResult.lhr?.categories["performance"]?.score
+                if (perfScore) {
+                    logger.info(`Run #${i + 1} performance score is ${perfScore}`)
+                    results.push(perfScore);
+                }
+            }
+        } catch (error) {
+            logger.error(`Error in thread: ${threadId}`)
+            logger.error(error);
+        } finally {
+            logger.info(`Killing the chrome instance.`)
+            chrome.kill();
+            logger.info(`Chrome instance killed successfully.`)
+        }
     }
+
+    // Calculate median perfomance socre
+    const median = calculateMedian(results);
+    logger.info(`Computed median performance score is ${median * 100}.`)
+    return median
+}
+
+/**
+ * Run lighthouse audit on the given playwright page and generate report. This will delete any existing reports.
+ * @param page playwright page
+ * @param runs count of total runs
+ */
+export async function runPlaywrightAudit(page: Page, runs?:number) {
+    // extract playwright page URL
+    const url: string = page.url()
+    logger.info(`Playwright page URL: ${url}`)
+    // extract cookies and add to lighthouse flags
+    let cookies: Array<Cookie> = await page.context().cookies();
+    let auditOpts: AuditOptions = {}
+    auditOpts.sessionData = { cookies: cookies }
+    logger.info(`Playwright page cookies: ${JSON.stringify(cookies)}`)
+    // run audit
+    runs = runs ? runs : 5;
+    logger.info(`Running lighthouse audit for playwright page for ${runs} runs.`)
+    await runAudit(url,auditOpts,runs)
 }
 
 /**
@@ -337,8 +381,3 @@ function generateReports(runnerResult: RunnerResult | undefined, threadId: any, 
         logger.error("Failed to generate DevtoolsLog.");
     }
 }
-
-
-
-
-

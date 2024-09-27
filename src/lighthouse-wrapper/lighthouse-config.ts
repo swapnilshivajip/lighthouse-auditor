@@ -21,6 +21,11 @@ export function getLogLevel(): "silent" | "error" | "warn" | "info" | "verbose" 
     return ["silent", "error", "warn", "info", "verbose"].includes(config["logLevel"]) ? config["logLevel"] : "info";
 }
 
+export function getModuleLogLevel():string{
+    let logLevel = {verbose:"debug",info:"info",warn:"warn",error:"error",silent:"off"}
+    return logLevel[getLogLevel()];
+}
+
 export function getHeadless() : boolean {
     return config["headless"] ?? true;
 }

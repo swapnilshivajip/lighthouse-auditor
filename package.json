@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "swapnilshivaji.pingal",
@@ -13,7 +14,12 @@
     "lighthouse":"^12.2.0",
     "chrome-launcher":"^1.1.2",
     "log4js":"6.9.1",
-    "uuidv4":"6.2.13"  
+    "uuidv4":"6.2.13" ,
+    "chrome-remote-interface":"0.33.2",
+    "@types/chrome-remote-interface":"0.31.14"
+  },
+  "peerDependencies": {
+    "playwright-core":"^1.47.0"
   },
   "type": "module"
 }

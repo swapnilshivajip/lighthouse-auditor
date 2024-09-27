@@ -1,9 +1,10 @@
 {
-    "formFactor": "mobile",
+    "formFactor": "desktop",
     "output":["html","json"],
     "auditCategories":["performance"],
-    "logLevel": "verbose",
+    "logLevel": "info",
     "headless":false,
     "disableGPU":false,
-    "url":""
+    "url":"",
+    "runs": 2
 }

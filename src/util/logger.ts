@@ -1,8 +1,9 @@
 import log4js from 'log4js';
+import { getModuleLogLevel } from '../lighthouse-wrapper/lighthouse-config';
 
 // Directory and file settings for logs
 const logDir = 'logs';
-const logFile = 'app.log';
+const logFile = 'lighthouse-auditor.log';
 
 // Set up log4js configuration
 log4js.configure({
@@ -18,7 +19,7 @@ log4js.configure({
     }
   },
   categories: {
-    default: { appenders: ['console', 'file'], level: 'debug' }
+    default: { appenders: ['console', 'file'], level: getModuleLogLevel() }
   }
 });
 
